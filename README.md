@@ -1,0 +1,25 @@
+# Magic tool 
+
+- # Features
+  - Autotype from keyboard the plain text `text_key_typeing.py`
+  - Auto type the bytecode `main.py`
+  - transfer to environment where the paste option is not available
+  - Keyboard is your transfer tool
+  - uses base64 to transfer
+  - 
+- # How to transfer media?
+  - put your media in upload folder any extension
+    - only one file is transferable per time, name of the file can be any name
+  - prepare your vim text opened in your destination
+    - other gui text editor if it is not vim , notepad++ or midnight, will lag on big media
+  - launch main.py
+  - you have 3 seconds to focus click on vim , press i to enter type mode
+  - wait until transfer finishes, don't touch mouse keyboard
+    - after it finishes, save file with command esc button and type `:wq` 
+  - use `getfile.py` to convert text data into binary back.
+  - check name of input and output in source code
+  - congrats you have transferred your file.
+- # how to transfer text
+  - paste your text in `vash_text.txt`
+  - launch `text_ley_typing.py`
+  - focus on any destination text editor
