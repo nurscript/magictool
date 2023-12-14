@@ -1,18 +1,816 @@
-import base64
+openapi: 3.0.0
+info:
+  version: "1.0.0"
+  title: fdt-scneario-api
+  description: Fdtech scenario server
+paths:
 
-INPUT = "something.txt"
+  /login:
+    post:
+      summary: sign in
+      tags:
+        - Login
+      description: signing in the user
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwtToken'
+        '401':
+          description: Unauthorized
 
-output_file_path = "output_file.zip"
+  /list:
+    get:
+      summary: "Gets the list of functional and logical scenarios"
+      tags:
+        - List all
+      description: "Displays list with all the scenarios that can be filtered by name or date and sorted ascending or descending. Functional scenarios will be displayed first."
+      operationId: searchAllScenarios
+      security:
+        - bearerAuth: []
+      parameters:
+      - in: query
+        name: search
+        description: "Put the string slice that will be searched in name, description, tags (for logical scenarios) or date (i.e. 2023-08) to filter results"
+        schema:
+          type: string
+      - in: query
+        name: sortField
+        description: "Specify name of the field that will be sorted by"
+        schema:
+          type: string
+      - in: query
+        name: order
+        description: "Specify sort order: \"asc\" for ascending (by default), \"desc\" for descending"
+        schema:
+          type: string
+      - in: query
+        name: archived
+        description: "Set \"true\" if we want to show archived records too"
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AnyScenarioView'
+        '404':
+          description: Not Found
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-with open(INPUT, 'r') as code:
-    base64_encoded = code.read()
+  /scenarios:
+    get:
+      summary: "Gets list with all logical scenarios"
+      tags:
+        - Logical scenarios
+      description: "Get list with all logical scenarios"
+      operationId: getAllLogicalScenarios
+      security:
+        - bearerAuth: []
+      parameters:
+      - in: query
+        name: topology
+        description: "XODR attachment ID, that will be searched in logical scenarios"
+        schema:
+          type: string
+      - in: query
+        name: fosc
+        description: "Functional scenario ID, that will be searched in logical scenarios"
+        schema:
+          type: string
+      - in: query
+        name: archived
+        description: "\"True\" if we want to show only archived records, \"false\" otherwise"
+        schema:
+          type: string
+          default: false
+      - in: query
+        name: page
+        description: "Number of page that will be shown"
+        schema:
+          type: string
+          default: "1"
+      - in: query
+        name: limit
+        description: "Maximum number of records per page"
+        schema:
+          type: string
+          default: "20"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginationResponse'
+        '404':
+          description: Not Found
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-decoded_data = base64.b64decode(base64_encoded)
+  /scenarios/{fosc_id}:
+    post:
+      summary: "Creates logical scenario and upload logical scenario's files"
+      tags:
+        - Logical scenarios
+      description: "Api for posting a logical scenario and directly relate it to corresponding functional scenario id. Functional scenario should be created first. You must upload here three types of file (.xosc, .xodr and .losc) and can also upload two .rd5 files (road5 and testrun)"
+      operationId: uploadScenario
+      security:
+        - bearerAuth: []
+      parameters:
+      - name: fosc_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                xosc_file:
+                  type: string
+                  format: binary
+                xodr_file:
+                  type: string
+                  format: binary
+                losc_file:
+                  type: string
+                  format: binary
+                test_file:
+                  type: string
+                  format: binary
+                road_run_file:
+                  type: string
+                  format: binary
+                tags:
+                  type: string
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogicalScenario'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-# Write the binary data to an output file
-with open(output_file_path, 'wb') as output_file:
-    output_file.write(decoded_data)
+  /scenarios/{id}:
+    get:
+      summary: "Gets details of the logical scenario"
+      tags:
+        - Logical scenarios
+      description: "Api for getting a scenarios detail page by its id"
+      operationId: getScenario
+      security:
+        - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogicalScenario'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-print("Binary data decoded and saved as", output_file_path)
+    put:
+      summary: "Duplicates the scenario"
+      tags:
+        - Logical scenarios
+      description: "Creates a copy of scenario and changes LOSC parameters or tags"
+      operationId: duplicateScenario
+      security:
+        - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-print("Finished")
+  /scenarios/{id}/archive:
+    put:
+      summary: "Toggles archive status of logical scenario"
+      tags:
+        - Logical scenarios
+      description: "Creates a copy of scenario and changes LOSC parameters or tags"
+      operationId: archiveScenario
+      security:
+        - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /scenarios/{id}/variation:
+    put:
+      summary: "Sets data of scenario variation"
+      tags:
+        - Logical scenarios
+      description: "Takes JSON data and puts it into logical scenario, creating ids for separate variation data"
+      operationId: setVariationInLogicalScenario
+      security:
+        - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VariationResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /search:
+    get:
+      summary: "Searches scenarios by tag"
+      tags:
+        - Logical scenarios
+      description: "Displays wildcard tag search query result of the scenarios"
+      operationId: searchScenario
+      security:
+        - bearerAuth: []
+      parameters:
+      - in: query
+        name: tag
+        description: "Pattern that will be searched in tags"
+        schema:
+          type: string
+
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LogicalScenario'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /functional:
+    post:
+      summary: "Creates funtional scenario"
+      tags:
+        - Functional scenarios
+      description: "Api for adding a functional scenario"
+      operationId: addFunctional
+      security:
+        - bearerAuth: []
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Functional'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: "Gets all functional scenario list"
+      tags:
+        - Functional scenarios
+      description: "Displays all the functional scenarios list"
+      operationId: getAllFunctionalScenarios
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Functional'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /functional/{id}:
+    get:
+      summary: "Gets functional scenario by it's ID"
+      tags:
+        - Functional scenarios
+      description: "Get functional scenario's full info"
+      operationId: getFunctionalScenario
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      security:
+        - bearerAuth: []
+      responses:
+          '200':
+            description: OK
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Functional'
+          '401':
+            description: Unauthorized
+          '404':
+            description: Not Found
+          '500':
+            description: Server error
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+
+    put:
+      summary: "Edits and updates the content of the functional scenario"
+      tags:
+        - Functional scenarios
+      description: "Update the content of functional scenario"
+      operationId: updateFunctionalScenario
+      security:
+        - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Functional'
+      responses:
+        '200':
+          description: OK
+          content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Message'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+          content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /scenarios/{id}/download_losc:
+    get:
+      summary: "Downloads .losc file"
+      tags:
+        - Attachments
+      description: "Creates XML-formatted data and outputs it as a .losc file in datastream for user to download"
+      operationId: downloadScenarioLOSC
+      security:
+        - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/xml:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /scenarios/{id}/{type}/download:
+    get:
+      summary: "Downloads file if specified type"
+      tags:
+        - Attachments
+      description: "Downloads file of specified type (if exists in db) except for .losc"
+      operationId: downloadScenarioAttachment
+      security:
+        - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: type
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/xml:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /topologies:
+    get:
+      summary: "Gets list of topology files (.xodr)"
+      tags:
+        - Attachments
+      description: "Get data of all .xodr's stored in database"
+      operationId: getXODRList
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Attachment'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Functional:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    LogicalScenario:
+      type: object
+      properties:
+        _id:
+          type: string
+        req_id:
+          type: string
+        username:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type:
+              string
+        fosc_id:
+          type: string
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        createdAt:
+          type: string
+          format: date-time
+        losc:
+          $ref: '#/components/schemas/LOSC'
+        var_scens:
+          type: array
+          items:
+            $ref: '#/components/schemas/VariationScenario'
+
+    AnyScenarioView:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+
+
+    Attachment:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        created_by:
+          type: string
+        time:
+          type: string
+          format: date-time
+        size:
+          type: integer
+        sha512:
+          type: string
+
+    LOSC:
+      type: object
+      properties:
+        name:
+          type: string
+        header:
+          $ref: '#/components/schemas/LoscHeader'
+        path_dir:
+          type: string
+        rand_seed:
+          type: integer
+        params:
+          type: array
+          items:
+            $ref: '#/components/schemas/LoscParameterFloat'
+
+    LoscHeader:
+      type: object
+      properties:
+        description:
+          type: string
+        author:
+          type: string
+        revMajor:
+          type: string
+        date:
+          type: string
+        revMinor:
+          type: string
+
+    LoscParameterFloat:
+      type: object
+      properties:
+        Name:
+          type: string
+        Min:
+          type: number
+          format: double
+        Max:
+          type: number
+          format: double
+        StepSize:
+          type: number
+          format: double
+
+    VariationScenario:
+      type: object
+      properties:
+        _id:
+          type: string
+        VariationTypeId:
+          type: string
+        MaxTestPoints:
+          type: string
+        TypeName:
+          type: string
+
+    VariationResponse:
+      type: object
+      properties:
+        scenario_id:
+          type: string
+        variations:
+          type: array
+          items:
+            $ref: '#/components/schemas/VariationScenario'
+
+    PaginationResponse:
+      type: object
+      properties:
+        paging_data:
+          $ref: '#/components/schemas/PaginationView'
+        scenario_page:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogicalScenario'
+
+    PaginationView:
+      type: object
+      properties:
+        page_size:
+          type: integer
+        page_num:
+          type: integer
+        page_amount:
+          type: integer
+
+    JwtToken:
+      type: object
+      properties:
+        expires:
+          type: string
+          format: date-time
+        token:
+          type: string
+    User:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+    Message:
+      type: object
+      properties:
+        message:
+          type: string
+
+  securitySchemes:
+    bearerAuth:
+      type: apiKey
+      name: Authorization
+      in: header
+
+security:
+  - bearerAuth: []  # Apply security to all operations by default
